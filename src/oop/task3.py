@@ -13,8 +13,8 @@ class Car():
         self.fuel =+ added_fuel_in_litres
 
 class SportCar(Car):
-    def __init__(self, name, door_count, color, speed, speedometer_projection):
-        super().__init__(name, door_count, color, speed)
+    def __init__(self, speedometer_projection, name, door_count, color, speed, fuel):
+        super().__init__(name, door_count, color, speed, fuel)
         self.speedometer_projection = speedometer_projection
 
     # Перепределение
@@ -26,8 +26,8 @@ class SportCar(Car):
         self.fuel =+ added_fuel_in_litres * 2
 
 class Truck(Car):
-    def __init__(self, name, door_count, color, speed, load_capacity):
-        super().__init__(name, door_count, color, speed)
+    def __init__(self, name, door_count, color, speed, fuel, load_capacity):
+        super().__init__(name, door_count, color, speed, fuel)
         self.load_capacity = load_capacity
 
     # Перепределение
