@@ -1,65 +1,66 @@
 import math
 from typing import List
 
-class RobotCleaner:
-    def __init__(self):
-        self.x = 0.0
-        self.y = 0.0
-        self.angle = 0
-        self.state = "water"
+state = 1
+x = 0.0
+y = 0.0
+angle = 0
 
-    # выполнить
-    def execute(self, commands: List[str]):
-        for command in commands:
-            cmd_and_arg = command.split()
-            cmd = cmd_and_arg[0]
-            cmd_arg = self.get_cmd_arg(cmd_and_arg)
 
-            if cmd == "move":
-                self.move(cmd_arg)
+# выполнить
+def execute(commands: List[str]):
+    for command in commands:
+        cmd_and_arg = command.split()
+        cmd = cmd_and_arg[0]
+        cmd_arg = get_cmd_arg(cmd_and_arg)
 
-            elif cmd == "turn":
-                self.turn(cmd_arg)
+        if cmd == "move":
+            move(cmd_arg)
+
+        elif cmd == "turn":
+            turn(cmd_arg)
                 
-            elif cmd == "set":
-                self.set(cmd_arg)
+        elif cmd == "set":
+            set(cmd_arg)
 
-            elif cmd == "start":
-                self.start()
+        elif cmd == "start":
+            start()
 
-            elif cmd == "stop":
-                self.stop()
+        elif cmd == "stop":
+            stop()
 
-    def get_cmd_arg(self, cmd_and_arg):
-        return cmd_and_arg[1] if len(cmd_and_arg) > 1 else None
+def get_cmd_arg(cmd_and_arg):
+    return cmd_and_arg[1] if len(cmd_and_arg) > 1 else None
 
-    def move(self, cmd_arg):
-        radians = math.radians(self.angle)
-        self.x += int(cmd_arg) * math.cos(radians)
-        self.y += int(cmd_arg) * math.sin(radians)
-        print(f"POS {self.x}, {self.y}")
+def move(cmd_arg):
+    global x, y
+    radians = math.radians(angle)
+    x += int(cmd_arg) * math.cos(radians)
+    y += int(cmd_arg) * math.sin(radians)
+    print(f"POS {x}, {y}")
 
-    def turn(self, cmd_arg):
-        self.angle += int(cmd_arg)
-        print("ANGLE", self.angle)
+def turn(cmd_arg):
+    global angle
+    angle += int(cmd_arg)
+    print("ANGLE", angle)
 
-    def set(self, cmd_arg):
-        if cmd_arg == "water":
-            self.state = cmd_arg
-        elif cmd_arg == "soap":
-            self.state = cmd_arg
-        elif cmd_arg == "brush":
-            self.state = cmd_arg
-        print("STATE", self.state)
+def set(cmd_arg):
+    global state
+    if cmd_arg == "water":
+        state = cmd_arg
+    elif cmd_arg == "soap":
+        state = cmd_arg
+    elif cmd_arg == "brush":
+        state = cmd_arg
+    print("STATE", state)
 
-    def start(self):
-        print("START WITH", self.state)
+def start():
+    print("START WITH", state)
 
-    def stop(self):
-        print("STOP")
+def stop():
+    print("STOP")
 
 
 work_programm = ("move 100", "turn -90", "set soap", "start", "move 50", "stop")
 
-robot = RobotCleaner()
-robot.execute(work_programm)
+execute(work_programm)
