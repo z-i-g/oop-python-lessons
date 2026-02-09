@@ -1,0 +1,4 @@
+# Python байт-код
+__pycache__/
+*.py[cod]
+*$py.class
