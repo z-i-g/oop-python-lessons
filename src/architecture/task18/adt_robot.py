@@ -1,75 +1,135 @@
-import math
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, replace
-from typing import List, Tuple
+from typing import Protocol, Callable, TypeVar, Generic, Any, Self, Final, Union
+from enum import Enum
+import math
 
-@dataclass(frozen=True)
-class RobotState:
-    x: float
-    y: float
-    angle: float
-    mode: int
-    history: Tuple[str, ...] = ()
-
-class CleanerApi(ABC):
-    WATER =1
+class CleaningMode(Enum):
+    WATER = 1
     SOAP = 2
     BRUSH = 3
 
-    @abstractmethod
-    def move(self, state: RobotState, dist: float) -> RobotState: pass
-    
-    @abstractmethod
-    def turn(self, state: RobotState, angle: float) -> RobotState: pass
-    
-    @abstractmethod
-    def set_mode(self, state: RobotState, mode_name: str) -> RobotState: pass
+@dataclass(frozen=True)
+class RobotState:
+    __x: float
+    __y: float
+    __angle: float
+    __mode: CleaningMode
 
-class Cleaner(CleanerApi):
+    @property
+    def position(self) -> tuple[float, float]:
+        return (self.__x, self.__y)
+
+    @property
+    def angle(self) -> float:
+        return self.__angle
+
+    @property
+    def mode(self) -> CleaningMode:
+        return self.__mode
+
+    def update_position(self, dx: float, dy: float) -> Self:
+        return replace(self, _RobotState__x=self.__x + dx, _RobotState__y=self.__y + dy)
+
+    def update_angle(self, da: float) -> Self:
+        return replace(self, _RobotState__angle=self.__angle + da)
+
+    def update_mode(self, mode: CleaningMode) -> Self:
+        return replace(self, _RobotState__mode=mode)
+
+@dataclass(frozen=True)
+class MoveResponse:
+    distance: float
+    success: bool
+
+@dataclass(frozen=True)
+class TurnResponse:
+    angle: float
+    success: bool
+
+@dataclass(frozen=True)
+class ModeResponse:
+    mode: CleaningMode
+    success: bool
+
+T = TypeVar('T')
+
+class RobotProgram(Protocol):
+    def interpret(self, state: RobotState) -> tuple[Any, RobotState]: ...
+
+@dataclass(frozen=True)
+class Stop:
+    def interpret(self, state: RobotState) -> tuple[None, RobotState]:
+        return None, state
+
+@dataclass(frozen=True)
+class Move(Generic[T]):
+    distance: float
+    next: Callable[[MoveResponse], T]
     
-    def get_start_state(self) -> RobotState:
-        return RobotState(0.0, 0.0, 0.0, self.WATER)
-
-    def _add_log(self, state: RobotState, message: str) -> RobotState:
-        new_history = state.history + (message,)
-        return replace(state, history=new_history)
-
-    def move(self, state: RobotState, dist: float) -> RobotState:
+    def interpret(self, state: RobotState) -> tuple[T, RobotState]:
         rads = math.radians(state.angle)
-        new_x = state.x + dist * math.cos(rads)
-        new_y = state.y + dist * math.sin(rads)
-        
-        msg = f"POS({new_x:.1f}, {new_y:.1f})"
-        return self._add_log(replace(state, x=new_x, y=new_y), msg)
+        new_state = state.update_position(
+            self.distance * math.cos(rads),
+            self.distance * math.sin(rads)
+        )
+        return self.next(MoveResponse(self.distance, True)), new_state
 
-    def turn(self, state: RobotState, angle: float) -> RobotState:
-        new_angle = (state.angle + angle) % 360
-        msg = f"ANGLE {new_angle}"
-        return self._add_log(replace(state, angle=new_angle), msg)
+@dataclass(frozen=True)
+class Turn(Generic[T]):
+    angle: float
+    next: Callable[[TurnResponse], T]
+    
+    def interpret(self, state: RobotState) -> tuple[T, RobotState]:
+        new_state = state.update_angle(self.angle)
+        return self.next(TurnResponse(self.angle, True)), new_state
 
-    def set_mode(self, state: RobotState, mode_name: str) -> RobotState:
-        modes = {'water': self.WATER, 'soap': self.SOAP, 'brush': self.BRUSH}
-        target_mode = modes.get(mode_name, state.mode)
-        msg = f"STATE {target_mode}"
-        return self._add_log(replace(state, mode=target_mode), msg)
+@dataclass(frozen=True)
+class SetMode(Generic[T]):
+    mode: CleaningMode
+    next: Callable[[ModeResponse], T]
+    
+    def interpret(self, state: RobotState) -> tuple[T, RobotState]:
+        new_state = state.update_mode(self.mode)
+        return self.next(ModeResponse(self.mode, True)), new_state
 
-    def make(self, state: RobotState, commands: List[str]) -> RobotState:
-        current_state = state
-        
-        for command in commands:
-            parts = command.split()
-            cmd_type = parts[0]
-            
-            if cmd_type == 'move':
-                current_state = self.move(current_state, float(parts[1]))
-            elif cmd_type == 'turn':
-                current_state = self.turn(current_state, float(parts[1]))
-            elif cmd_type == 'set':
-                current_state = self.set_mode(current_state, parts[1])
-            elif cmd_type == 'start':
-                print(f"START WITH {current_state.mode}")
-                current_state = self._add_log(current_state, "START")
-            elif cmd_type == 'stop':
-                print("STOP")
-                current_state = self._add_log(current_state, "STOP")
-        return current_state
+class Interpreter:
+    @staticmethod
+    def run(program: RobotProgram, state: RobotState) -> RobotState:
+        curr_p, curr_s = program, state
+        while curr_p is not None and not isinstance(curr_p, Stop):
+            curr_p, curr_s = curr_p.interpret(curr_s) # type: ignore
+        return curr_s
+
+class RobotDSL:
+    def __init__(self):
+        self._commands: list[Callable[[Any], RobotProgram]] = []
+    
+    def move(self, distance: float) -> Self:
+        self._commands.append(lambda n: Move(distance, lambda _: n))
+        return self
+    
+    def turn(self, angle: float) -> Self:
+        self._commands.append(lambda n: Turn(angle, lambda _: n))
+        return self
+    
+    def set_mode(self, mode: CleaningMode) -> Self:
+        self._commands.append(lambda n: SetMode(mode, lambda _: n))
+        return self
+    
+    def repeat(self, times: int, block: Callable[[Self], None]) -> Self:
+        sub_dsl = RobotDSL()
+        block(sub_dsl) # type: ignore
+        for _ in range(times):
+            self._commands.extend(sub_dsl._commands)
+        return self
+
+    def sequence(self, *funcs: Callable[[Self], None]) -> Self:
+        for func in funcs:
+            func(self)
+        return self
+    
+    def build(self) -> RobotProgram:
+        prog: RobotProgram = Stop()
+        for cmd_factory in reversed(self._commands):
+            prog = cmd_factory(prog)
+        return prog
